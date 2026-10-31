@@ -11,7 +11,7 @@ The immediate goal is to get the software stack (Forth layer, TUI, input mapping
 The envisioned device combines:
 
 - A full interactive Forth command-line / TUI environment (ESP32Forth or compatible)
-- microReticulum as the networking backend (standalone transport node + modem for a phone)
+- microReticulum as the networking backend (standalone transport node + modem for a phone), with full RNode functionality preserved and operated through the REPL
 - Compact MessageEase-style thumb keyboard
 - Mechanical form factor that stays slim in a pocket and flips open into a usable terminal
 - Optional multi-transport (LoRa + audio modem + Bluetooth audio)
@@ -51,6 +51,7 @@ To my knowledge, no existing product or finished open-source build combines thes
 - **Result**: Closed = slim pocketable RNode with normal buttons and portrait status. Open = landscape TUI + thumb keyboard with 18650 as grip. Snap shut and keyboard disappears/disabled. No external switch required. Fully printable on industrial 3D printers.
 
 ### Input
+- The author already uses a MessageEase-style keyboard daily on a phone, so the learning curve is not a concern.
 - MessageEase-style 4-button keyboard (simultaneous presses encode the 9 positions of the classic layout; tap vs hold for variants).
 - Additional mode/trigger buttons (symbols, numbers, etc.) easily added in the printed case.
 - Physical covering when closed prevents accidental presses.
@@ -61,7 +62,7 @@ To my knowledge, no existing product or finished open-source build combines thes
 
 ### Reticulum / microReticulum Layers
 
-*Proposed split. This is a design hypothesis to validate in emulation, not a settled decision.*
+*Design decision: Forth is a thin layer on top of the existing backend. It does not replace any Reticulum or RNode logic.*
 
 **Kept in C++ (microReticulum core)**:
 - **Identity**: X25519 key agreement + Ed25519 signatures. Constant-time crypto stays in the existing library. TODO: verify how destination hashes are derived (name hash + identity hash, truncated) against the Reticulum manual.
@@ -69,15 +70,18 @@ To my knowledge, no existing product or finished open-source build combines thes
 - **Interface**: SX1262 radio driver, RX/TX, airtime accounting, IFAC.
 - **Link handshake crypto**: X25519 key exchange and session-key derivation primitives. TODO: verify the exact handshake and cipher details against the Reticulum manual.
 
-**Moved or simplified in Forth (experiment)**:
-- **Transport**: Path tables, announce propagation, next-hop forwarding, job scheduler. For a single-radio pocket node a minimal “forward if next hop exists, otherwise drop/announce” loop may be small. No node ever knows a full path—only the next hop. Open questions: correctness of forwarding and announce rate-limiting against the reference implementation, and whether Forth is fast enough. If not, Transport stays in C++.
-- **Destination / Announce**: Creation, signing, broadcast timing, and handling of received announces (crypto calls stay in C++).
-- **Link state machine**: Handshake sequencing, keep-alives, request/response, timeouts (crypto steps in C++).
-- **Application layer**: LXMF store-and-forward, display, user input, duty-cycling, chat, etc.
-- **Provisioning / Config**: Replaced by simple Forth words reading/writing blocks or SPIFFS.
+**Also stays in C++**:
+- **Transport**: path tables, announce propagation, next-hop forwarding. Reimplementing these in Forth was considered and rejected: matching the reference behavior exactly is risky, and mistakes could misbehave on a shared network.
+- **RNode functionality**: the existing RNode behavior (radio configuration, KISS interface, transport mode) is preserved as is.
+
+**Exposed to Forth through a thin bridge**:
+- **RNode control from the REPL**: Forth words to read and set radio parameters (frequency, bandwidth, spreading factor, TX power, airtime limits), toggle transport mode, and read status and statistics. This replaces `rnodeconf` for on-device use.
+- **Messaging primitives**: send and receive packets, create destinations, trigger announces, read received announces, sign and verify.
+- **Application layer in Forth**: display, user input, chat, LXMF-style messaging UI, duty-cycling policy.
+- **Provisioning / Config**: simple Forth words reading/writing blocks or SPIFFS.
 
 ### Dual-Role Operation
-- **Standalone peer / light transport node**: Own Identity, light path table (dozens of next-hop entries), can originate and forward packets when the phone is absent.
+- **Standalone peer / transport node**: Own Identity, uses microReticulum's own path handling, can originate and forward packets when the phone is absent.
 - **Modem for phone**: Thin interface (USB, BLE, or serial) presents the SX1262 as a KISS-style or raw-frame interface (TODO: decide whether to stay RNode-KISS-compatible, as the stock firmware already is). Phone’s full Reticulum Transport owns large path tables, multi-interface routing, and announce logic. ESP32 hands received frames to the phone and accepts frames to transmit.
 - Mode switch owned by Forth. Both roles can run concurrently when the phone is attached; fallback to light mode when disconnected.
 
@@ -87,15 +91,29 @@ To my knowledge, no existing product or finished open-source build combines thes
 - Full command-line / TUI. User is familiar with TUIs and Linux terminals; adapting to Forth with a “funny keyboard” is acceptable.
 - Custom 3×5 ASCII bitmap font (each character 2 bytes → full 7-bit set in 192 bytes) yielding ~32×10 character TUI on the 128×64 OLED.
 - Words that call C++ entry points for radio send/recv, Identity sign/verify, packet pack/unpack, etc.
-- Light path table, announce policy, modem bridge, OLED rendering, button handling, sleep policy.
+- Announce policy, modem bridge, OLED rendering, button handling, sleep policy.
 - Once a word has a stable stack effect and passes unit tests it becomes a black box.
 - Development aid: fine-tuned LLM that emits a Forth word from a desired stack effect, optionally refined by a genetic algorithm against unit tests for size/speed.
 
-### Optional Extensions
+### Spitballed Ideas (not committed scope)
+*Longer-term ideas that are not part of the core plan. None are designed or scheduled.*
+
 - **Audio modem**: Bell 103 (300-baud FSK) via bit-banging / PWM / DAC / ADC or I2S, with Goertzel detection. Speaker + mic, 3.5 mm TRRS jack (headphone/mic for cell calls), optional old-school 4-pin modular phone plug (with isolation) and phone jack. Bluetooth Classic HFP so the device can be used as a Bluetooth audio device during cell calls.
 - **ECC for audio**: XOR-block based ECC with per-block CRC to identify and recover damaged blocks. Encryption already available via Reticulum.
 - **SSH client**: Thin SSH protocol layer (handshake state machine, packet framing, MAC, channel, PTY) that reuses microReticulum’s existing X25519 and Ed25519 primitives instead of duplicating curve code. The session cipher (AES-GCM or ChaCha20-Poly1305) would need to be added; it is not assumed to be in microReticulum. Exposed as Forth words. Uses the ESP32-S3 Wi-Fi. Full libssh/libssh2 ports and PocketSSH exist for reference; the goal is to avoid duplicating the elliptic-curve implementation.
 - **Flash content**: Classic 80s micro games (e.g. Elite ports), text-based Forth spreadsheet. 8 MB flash is ample.
+
+## Milestones
+
+1. **Emulated shell**: ESP32Forth running in emulation with the OLED display and button input mapped (3×5 font, TUI, MessageEase chords).
+2. **Bridge stubs**: C++ entry points for radio and RNode control stubbed on the host; Forth words call them.
+3. **Vertical slice**: one message sent and received between two nodes, driven from the Forth REPL.
+4. **RNode control from the REPL**: Forth words for radio parameters, transport mode, and status.
+5. **Real backend**: relink against microReticulum on the physical board; validate airtime, current draw, and heat.
+6. **Input prototype**: breadboard the 4-button keyboard.
+7. **Case and 18650 build**: SolidWorks design, printing, and battery measurements.
+
+Spitballed ideas come after these and are not scheduled.
 
 ## Development Approach
 
@@ -103,7 +121,7 @@ To my knowledge, no existing product or finished open-source build combines thes
 
 1. Reduce radio, Identity, and Packet operations to a small set of C++ entry points.
 2. Stub those entry points on the host (log, loopback, or canned frames) or inside Wokwi.
-3. Develop Forth TUI, MessageEase mapping, light path table, modem bridge, mode switch, and bridge words against the stubs.
+3. Develop Forth TUI, MessageEase mapping, modem bridge, mode switch, and bridge words against the stubs.
 4. Unit-test words; commit stable ones as black boxes to SPIFFS.
 5. Relink against real microReticulum when the Forth layer and bridge are solid.
 6. Flash the physical Heltec only for airtime, heat, and hardware validation.
