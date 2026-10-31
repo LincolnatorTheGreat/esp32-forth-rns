@@ -105,15 +105,31 @@ To my knowledge, no existing product or finished open-source build combines thes
 
 ## Milestones
 
-1. **Emulated shell**: ESP32Forth running in emulation with the OLED display and button input mapped (3×5 font, TUI, MessageEase chords).
-2. **Bridge stubs**: C++ entry points for radio and RNode control stubbed on the host; Forth words call them.
-3. **Vertical slice**: one message sent and received between two nodes, driven from the Forth REPL.
-4. **RNode control from the REPL**: Forth words for radio parameters, transport mode, and status.
-5. **Real backend**: relink against microReticulum on the physical board; validate airtime, current draw, and heat.
-6. **Input prototype**: breadboard the 4-button keyboard.
-7. **Case and 18650 build**: SolidWorks design, printing, and battery measurements.
+Pure-Forth work comes first: it needs no radio and runs entirely in emulation.
+
+1. **3×5 font renderer**: port the author's existing 3×5 ASCII font into Forth words that draw characters to a 128×64 framebuffer (~32×10 text grid).
+2. **Chord decoder**: Forth words mapping 4-button chords (tap vs hold) to characters, tested against scripted button input.
+3. **Line editor and REPL on the OLED**: input line, scrolling output, and stack display, running in emulation.
+4. **Words as black boxes**: unit-test harness for stable words; store them in SPIFFS/blocks.
+5. **Bridge stubs**: C++ entry points for radio and RNode control stubbed on the host; Forth words call them through the shared memory window (see Memory Budget).
+6. **Vertical slice**: one message sent and received between two nodes, driven from the Forth REPL.
+7. **RNode control from the REPL**: Forth words for radio parameters, transport mode, and status.
+8. **Real backend**: relink against microReticulum on the physical board; measure free heap, airtime, current draw, and heat.
+9. **Input prototype**: breadboard the 4-button keyboard.
+10. **Case and 18650 build**: SolidWorks design, printing, and battery measurements.
 
 Spitballed ideas come after these and are not scheduled.
+
+## Memory Budget
+
+*Estimates, not measurements. Measure on the board at milestone 8.*
+
+- **Total**: the ESP32-S3FN8 has 512 KB of on-chip SRAM and, on the Heltec V3, no PSRAM. Flash (8 MB) does not count toward RAM.
+- **Not available to applications**: part of the 512 KB is reserved for the ROM/IRAM/cache and the FreeRTOS and driver overhead, so the usable heap after boot is typically in the range of 300 KB. Wi-Fi and Bluetooth stacks take a large further share when enabled (Wi-Fi is currently disabled).
+- **microReticulum footprint**: unknown. It depends on its path table, packet buffers, and announce queues. TODO: record free heap (`esp_get_free_heap_size()` and the largest free block) with the stock firmware idle, in transport mode, and under load.
+- **Forth arena**: reserve a fixed 64–128 KB block, allocated once at boot, as the only memory Forth can address. This keeps Forth bugs (stray `!` or `C!`) from corrupting the networking backend.
+- **Bridge across the window**: C++ entry points take offsets inside the arena (buffer address + length), and the C++ side bounds-checks every offset before touching memory. Packets and results are exchanged by copying through buffers inside the arena. Forth never holds raw pointers into the C++ heap.
+- **Open question**: ESP32Forth's default memory layout; check whether the arena size and location can be configured, or whether the build needs patching.
 
 ## Development Approach
 
