@@ -129,7 +129,21 @@ Spitballed ideas come after these and are not scheduled.
 - **microReticulum footprint**: unknown. It depends on its path table, packet buffers, and announce queues. TODO: record free heap (`esp_get_free_heap_size()` and the largest free block) with the stock firmware idle, in transport mode, and under load.
 - **Forth arena**: reserve a fixed 64–128 KB block, allocated once at boot, as the only memory Forth can address. This keeps Forth bugs (stray `!` or `C!`) from corrupting the networking backend.
 - **Bridge across the window**: C++ entry points take offsets inside the arena (buffer address + length), and the C++ side bounds-checks every offset before touching memory. Packets and results are exchanged by copying through buffers inside the arena. Forth never holds raw pointers into the C++ heap.
-- **Open question**: ESP32Forth's default memory layout; check whether the arena size and location can be configured, or whether the build needs patching.
+- **ESP32Forth's default layout** (ueforth 7.0.8.1): `esp32/main.cpp` mallocs the largest free internal block minus `MINIMUM_FREE_SYSTEM_HEAP`, so stock ESP32Forth takes nearly all remaining RAM. Capping it at the arena size is a small patch to that `malloc`. The POSIX build uses a fixed 10 MB mmap (`HEAP_SIZE` in `posix/main.c`); shrink it to the arena size to test at realistic limits.
+
+## Building the Emulated Forth (host)
+
+```
+git submodule update --init
+cd third_party/ueforth && ./configure.py && ninja posix
+./out/posix/ueforth          # REPL
+```
+
+The submodule is pinned to ueforth `d8376db` (7.0.8.1). Needs gcc, ninja, and (later) SDL2.
+
+## Font
+
+`assets/font/3x5-ascii.otf` is the author's own 3×5 font (SIL OFL files included). Each glyph is 3 columns × 5 rows = 15 bits, stored as 2 bytes; ASCII 32–127 is 192 bytes. `tools/gen_font_fs.py` regenerates `src/forth/font3x5.fs` from the OTF (requires `fonttools`). `glyph@ ( c -- u )` returns the 15-bit bitmap, bit 14 = top-left.
 
 ## Development Approach
 
