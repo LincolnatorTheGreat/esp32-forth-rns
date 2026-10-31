@@ -9,7 +9,7 @@
   if $84 $96 $E2 u8emit exit then
   32 emit ;
 
-: fb-flush ( -- )
+: fb-flush-term ( -- )
   27 emit ." [H"
   FB-H 0 do
     FB-W 0 do
@@ -18,3 +18,5 @@
       half-block
     loop cr
   2 +loop ;
+
+' fb-flush-term is fb-flush

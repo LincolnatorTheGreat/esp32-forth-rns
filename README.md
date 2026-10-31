@@ -150,6 +150,16 @@ tests/run.sh                                                                 # F
 
 `src/forth/fb.fs` is a 128×64 framebuffer in SSD1306 page layout, `text.fs` draws the 3×5 font on a 32×10 grid, and `fb-term.fs` is the host-only display flush (terminal half-blocks). Note: ueforth `include` paths are relative to the including file, and this build lacks `pick`, `2swap`, `2over`, and `within`.
 
+## The Emulated OLED REPL
+
+```
+tools/oled          # opens a 768x384 window; type on your normal keyboard
+```
+
+`tools/oled` builds `tools/oled-host.c` (SDL2) and launches ueforth as a child process. Forth's `type` and `key` are deferred words, so `src/forth/console.fs` redirects them: the normal prompt, echo, and output are drawn into a 32×10 grid on the framebuffer with the 3×5 font and sent to the window as frames. Useful words: `cls` clears the screen. Close the window or type `bye` to exit. For a full-size terminal REPL while learning, run `third_party/ueforth/out/posix/ueforth` directly.
+
+`tests/test_oled.sh` drives the window headlessly and decodes the frame back to text with `tools/decode_screen.py` (needs `fonttools`, so set `PYTHON` to a venv python).
+
 ## Font
 
 `assets/font/3x5-ascii.otf` is the author's own 3×5 font (SIL OFL files included). Each glyph is 3 columns × 5 rows = 15 bits, stored as 2 bytes; ASCII 32–127 is 192 bytes. `tools/gen_font_fs.py` regenerates `src/forth/font3x5.fs` from the OTF (requires `fonttools`). `glyph@ ( c -- u )` returns the 15-bit bitmap, bit 14 = top-left.

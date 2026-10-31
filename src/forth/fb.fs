@@ -6,6 +6,8 @@
 FB-W FB-H * 8 / constant FB-BYTES
 create fb FB-BYTES allot
 
+defer fb-flush   \ display-specific; set by fb-term.fs (terminal) or fb-window.fs (SDL window)
+
 : fb-clear ( -- ) fb FB-BYTES 0 fill ;
 
 : fb-addr ( x y -- addr mask ) dup 3 rshift FB-W * rot + fb + swap 7 and 1 swap lshift ;

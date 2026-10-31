@@ -1,0 +1,8 @@
+#!/bin/sh
+# Build (if needed) and launch the emulated OLED REPL window. Usage: tools/oled
+cd "$(dirname "$0")/.." || exit 1
+mkdir -p build
+if [ ! -x build/oled-host ] || [ tools/oled-host.c -nt build/oled-host ]; then
+  gcc -O2 -Wall -o build/oled-host tools/oled-host.c $(sdl2-config --cflags --libs) || exit 1
+fi
+exec build/oled-host third_party/ueforth/out/posix/ueforth src/forth/oled-repl.fs
