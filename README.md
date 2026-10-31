@@ -141,6 +141,15 @@ cd third_party/ueforth && ./configure.py && ninja posix
 
 The submodule is pinned to ueforth `d8376db` (7.0.8.1). Needs gcc, ninja, and (later) SDL2.
 
+## Running the Demo and Tests
+
+```
+(cat src/forth/demo.fs; echo bye) | third_party/ueforth/out/posix/ueforth   # draws text in the terminal
+tests/run.sh                                                                 # Forth unit tests
+```
+
+`src/forth/fb.fs` is a 128×64 framebuffer in SSD1306 page layout, `text.fs` draws the 3×5 font on a 32×10 grid, and `fb-term.fs` is the host-only display flush (terminal half-blocks). Note: ueforth `include` paths are relative to the including file, and this build lacks `pick`, `2swap`, `2over`, and `within`.
+
 ## Font
 
 `assets/font/3x5-ascii.otf` is the author's own 3×5 font (SIL OFL files included). Each glyph is 3 columns × 5 rows = 15 bits, stored as 2 bytes; ASCII 32–127 is 192 bytes. `tools/gen_font_fs.py` regenerates `src/forth/font3x5.fs` from the OTF (requires `fonttools`). `glyph@ ( c -- u )` returns the 15-bit bitmap, bit 14 = top-left.
