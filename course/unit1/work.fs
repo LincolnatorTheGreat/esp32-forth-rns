@@ -17,6 +17,6 @@
 \ chip load in ten-thousandths (0.0020" = 20), feed in thousandths/min.
 \ rpm = 3.82 * sfm / dia_inches  (the shop constant, 12/pi rounded)
 \     = 3820 * sfm / dia_thou
-: sfm>rpm ( sfm dia-thou -- rpm )  ;              \ rounded to nearest; hint: */
+: sfm>rpm ( sfm dia-thou -- rpm )  ;              \ rounded to nearest
 : ipm     ( rpm flutes chip-tenk -- ipm-thou )  ;  \ rpm * flutes * chip / 10
 : mm>thou ( mm/100 -- thou )  ;                   \ 12.70 mm = 1270 -> 500, rounded to nearest
