@@ -7,6 +7,6 @@
 : cube  ( n -- n^3 )  dup dup * * ;
 : avg   ( a b -- avg )  + 2/ ;
 
-: sfm>rpm ( sfm dia-thou -- rpm )  >r 76394 r> 10 * */ 1+ 2/ ;   \ twice the answer, then round half up
+: sfm>rpm ( sfm dia-thou -- rpm )  >r 3820 * r@ 2/ + r> / ;   \ add half the divisor, then divide
 : ipm     ( rpm flutes chip-tenk -- ipm-thou )  * 10 */ ;
 : mm>thou ( mm/100 -- thou )  3937 * 5000 + 10000 / ;
