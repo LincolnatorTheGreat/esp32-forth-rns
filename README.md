@@ -107,10 +107,10 @@ To my knowledge, no existing product or finished open-source build combines thes
 
 Pure-Forth work comes first: it needs no radio and runs entirely in emulation.
 
-1. **3×5 font renderer**: port the author's existing 3×5 ASCII font into Forth words that draw characters to a 128×64 framebuffer (~32×10 text grid).
+1. ✅ **3×5 font renderer** (done): port the author's existing 3×5 ASCII font into Forth words that draw characters to a 128×64 framebuffer (~32×10 text grid).
 2. **Chord decoder**: Forth words mapping 4-button chords (tap vs hold) to characters, tested against scripted button input.
-3. **Line editor and REPL on the OLED**: input line, scrolling output, and stack display, running in emulation.
-4. **Words as black boxes**: unit-test harness for stable words; store them in SPIFFS/blocks.
+3. 🟡 **Line editor and REPL on the OLED** (partly done): the REPL, echo, and scrolling output run on the emulated OLED using the stock ueforth line editor. Still to do: a stack display line and a custom line editor.
+4. 🟡 **Words as black boxes** (started: `tests/run.sh` and `tests/test_oled.sh`): unit-test harness for stable words; store them in SPIFFS/blocks.
 5. **Bridge stubs**: C++ entry points for radio and RNode control stubbed on the host; Forth words call them through the shared memory window (see Memory Budget).
 6. **Vertical slice**: one message sent and received between two nodes, driven from the Forth REPL.
 7. **RNode control from the REPL**: Forth words for radio parameters, transport mode, and status.
@@ -164,6 +164,33 @@ tools/oled          # opens a 768x384 window; type on your normal keyboard
 
 `assets/font/3x5-ascii.otf` is the author's own 3×5 font (SIL OFL files included). Each glyph is 3 columns × 5 rows = 15 bits, stored as 2 bytes; ASCII 32–127 is 192 bytes. `tools/gen_font_fs.py` regenerates `src/forth/font3x5.fs` from the OTF (requires `fonttools`). `glyph@ ( c -- u )` returns the 15-bit bitmap, bit 14 = top-left.
 
+## Repository Layout
+
+| Path | Purpose |
+|---|---|
+| `third_party/ueforth` | ESP32Forth source (git submodule, pinned to `d8376db`, 7.0.8.1) |
+| `assets/font/` | The author's 3×5 ASCII font (OTF) and its license files |
+| `tools/otf2glyphs.py`, `tools/gen_font_fs.py` | Convert the OTF into `src/forth/font3x5.fs` |
+| `tools/oled-host.c`, `tools/oled` | SDL2 window host and launcher for the emulated OLED REPL |
+| `tools/decode_screen.py` | Decode a raw OLED frame back to text (used by tests) |
+| `src/forth/font3x5.fs` | Generated glyph table, `glyph@` |
+| `src/forth/fb.fs` | Framebuffer (SSD1306 page layout), `defer`red `fb-flush` |
+| `src/forth/fb-term.fs`, `fb-window.fs` | Host display flushes: terminal half-blocks, SDL window frames |
+| `src/forth/text.fs` | Draw 3×5 text on a 32×10 grid |
+| `src/forth/console.fs` | Redirects `type`/`key` so the REPL runs on the framebuffer |
+| `src/forth/load.fs`, `oled-repl.fs`, `demo.fs` | Load order, windowed REPL entry point, terminal demo |
+| `tests/` | `run.sh` (Forth unit tests), `test_oled.sh` (headless OLED REPL test) |
+
+Hardware-specific code (I²C SSD1306 flush, GPIO buttons) will replace only the host flush and key source; everything above them is shared.
+
+## ueforth Notes
+
+- This build has no `pick`, `2swap`, `2over`, `within`, `0>`, or `vocabularies`; `3dup` exists. Use variables or `0 >`.
+- `include` paths are relative to the including file (top-level scripts are relative to the working directory).
+- `type`, `key`, `key?`, and `fb-flush` (ours) are `defer`red, so I/O can be redirected with `is`; the raw versions are `default-type` and `default-key`.
+- The stock key loop spins forever at end of input unless the script ends with `bye`; `console.fs` exits on EOF.
+- ueforth creates a `blocks.fb` file in the working directory (ignored by git).
+
 ## Development Approach
 
 **Phase 1 (current focus): software in emulation.** Everything below through step 4 runs without the physical board. **Phase 2:** relink and validate on hardware. **Phase 3:** CAD and print the case (SolidWorks, industrial 3D printers).
@@ -184,7 +211,8 @@ No high-fidelity cycle-accurate Heltec V3 emulator with SX1262 exists. Candidate
 - Transport node mode activated via rnodeconf --tnc.
 - Display intensity set to 1, blanking timeout 15 s, Wi-Fi disabled, TX/RX settings reduced to preserve the small battery.
 - Unsigned firmware warning is expected and harmless (microReticulum builds are not signed with the official RNode key).
-- Not started (concept only): Forth layer, emulation setup, case design, audio modem, SSH client.
+- Emulation (host, Linux): working. ueforth 7.0.8.1 POSIX build, a 128×64 framebuffer, the 3×5 font, and an SDL window (`tools/oled`) running the Forth REPL on the emulated OLED with a normal keyboard. Screen-size check: 32×10 characters is tight even with the 3×5 font.
+- Not started (concept only): chord keyboard, C++ bridge, flashing Forth to the board, case design, audio modem, SSH client.
 - Frequency band confirmed as 915 MHz for legal operation in California.
 
 ## Related Projects
